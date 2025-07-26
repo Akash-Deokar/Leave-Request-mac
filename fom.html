@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top" />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 40px;
+      }
+      label {
+        font-weight: bold;
+      }
+      input, select, textarea, button {
+        margin-bottom: 10px;
+        padding: 6px;
+        width: 100%;
+      }
+      .borrower-block, .document-block {
+        margin: 15px 0;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        background-color: #f9f9f9;
+      }
+    </style>
+    <script>
+      const ISSUE_OPTIONS = [
+        "Notary stamp is missing",
+        "Signing date is missing",
+        "Signing date is incorrect",
+        "Title is missing",
+        "License expiration date is past dated",
+        "License expiration date is missing"
+      ];
+
+      async function fetchDocumentTypes() {
+        const types = await google.script.run.withSuccessHandler(renderDocTypes).getDocumentTypes();
+      }
+
+      function renderDocTypes(docTypes) {
+        window.documentTypes = docTypes;
+      }
+
+      function addBorrower() {
+        const container = document.getElementById("borrowers");
+        const borrowerDiv = document.createElement("div");
+        borrowerDiv.className = "borrower-block";
+        borrowerDiv.innerHTML = `
+          <label>Borrower Full Name:</label>
+          <input type="text" name="fullName" required>
+          <div class="documents"></div>
+          <button type="button" onclick="addDocument(this)">+ Add Document</button>
+        `;
+        container.appendChild(borrowerDiv);
+      }
+
+      function addDocument(button) {
+        const docDiv = document.createElement("div");
+        docDiv.className = "document-block";
+        const docTypeOptions = window.documentTypes.map(d => `<option value="${d}">${d}</option>`).join('');
+        const issueOptions = ISSUE_OPTIONS.map(i => `<option value="${i}">${i}</option>`).join('');
+
+        docDiv.innerHTML = `
+          <label>Document Type:</label>
+          <select name="documentType">${docTypeOptions}</select>
+          <label>Issue(s):</label>
+          <select multiple name="issues">${issueOptions}</select>
+        `;
+        button.parentElement.querySelector(".documents").appendChild(docDiv);
+      }
+
+      function clearForm() {
+        document.getElementById("correctionForm").reset();
+        document.getElementById("borrowers").innerHTML = "";
+      }
+
+      function handleSubmit(e) {
+        e.preventDefault();
+        const form = e.target;
+
+        const borrowers = [...form.querySelectorAll(".borrower-block")].map(b => {
+          const fullName = b.querySelector("input[name='fullName']").value;
+          const documents = [...b.querySelectorAll(".document-block")].map(d => {
+            const docType = d.querySelector("select[name='documentType']").value;
+            const issues = [...d.querySelector("select[name='issues']").selectedOptions].map(o => o.value);
+            return { documentType: docType, issues: issues };
+          });
+          return { fullName: fullName, documents: documents };
+        });
+
+        const formData = {
+          loanNumber: form.loanNumber.value,
+          borrowerLastName: form.borrowerLastName.value,
+          propertyAddress: form.propertyAddress.value,
+          recipientsTo: [...form.querySelectorAll("input[name='recipientsTo']:checked")].map(i => i.value),
+          recipientsCc: [...form.querySelectorAll("input[name='recipientsCc']:checked")].map(i => i.value),
+          borrowers: borrowers
+        };
+
+        google.script.run
+          .withSuccessHandler(msg => alert(msg))
+          .processForm(formData);
+      }
+
+      window.onload = () => {
+        fetchDocumentTypes();
+      };
+    </script>
+  </head>
+  <body>
+    <h2>Mortgage Document Correction Request</h2>
+    <form id="correctionForm" onsubmit="handleSubmit(event)">
+      <label>Loan Number:</label>
+      <input type="text" name="loanNumber" required>
+
+      <label>Borrower Last Name:</label>
+      <input type="text" name="borrowerLastName" required>
+
+      <label>Property Address:</label>
+      <input type="text" name="propertyAddress" required>
+
+      <label>To (Recipients):</label><br>
+      <input type="checkbox" name="recipientsTo" value="akashdeokar20001@gmail.com"> akashdeokar20001@gmail.com<br>
+      <input type="checkbox" name="recipientsTo" value="titleteam@example.com"> titleteam@example.com<br>
+      <input type="checkbox" name="recipientsTo" value="funder@example.com"> funder@example.com<br>
+
+      <label>CC:</label><br>
+      <input type="checkbox" name="recipientsCc" value="akashdeokar2001@gmail.com"> akashdeokar2001@gmail.com<br>
+      <input type="checkbox" name="recipientsCc" value="supervisor@example.com"> supervisor@example.com<br>
+      <input type="checkbox" name="recipientsCc" value="manager@example.com"> manager@example.com<br>
+
+      <hr>
+      <div id="borrowers"></div>
+      <button type="button" onclick="addBorrower()">+ Add Borrower</button><br><br>
+
+      <button type="submit">📧 Generate Email Draft</button>
+      <button type="button" onclick="clearForm()">🧹 Clear Form</button>
+    </form>
+  </body>
+</html>
